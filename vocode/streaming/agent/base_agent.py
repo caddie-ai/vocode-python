@@ -123,6 +123,7 @@ class BaseAgent(AbstractAgent[AgentConfigType], InterruptibleWorker):
         interruptible_event_factory: InterruptibleEventFactory = InterruptibleEventFactory(),
         logger: Optional[logging.Logger] = None,
     ):
+        print("Initializing agent")
         self.input_queue: asyncio.Queue[
             InterruptibleEvent[AgentInput]
         ] = asyncio.Queue()
@@ -163,12 +164,19 @@ class BaseAgent(AbstractAgent[AgentConfigType], InterruptibleWorker):
         self.conversation_state_manager = conversation_state_manager
 
     def start(self):
+        print("Starting agent")
         super().start()
-        if self.agent_config.initial_message is not None:
-            self.produce_interruptible_event_nonblocking(
-                AgentResponseMessage(message=self.agent_config.initial_message),
-                is_interruptible=False,
-            )
+        print("Starting agent")
+        # if self.agent_config.initial_message is not None:
+        self.produce_interruptible_event_nonblocking(
+            AgentResponseMessage(
+                message=BaseMessage(
+                    text="Hi I'm Caddie. I'm an AI trained to help you schedule an appointment. Are you looking to schedule an appointment?"
+                )
+            ),
+            is_interruptible=False,
+        )
+        print("Starting agent")
 
     def set_interruptible_event_factory(self, factory: InterruptibleEventFactory):
         self.interruptible_event_factory = factory

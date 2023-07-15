@@ -155,15 +155,16 @@ class TelephonyServer:
             twilio_from: str = Form(alias="From"),
             twilio_to: str = Form(alias="To"),
         ) -> Response:
+            agent_config = agent_config_factory.get_agent_config(
+                twilio_config=twilio_config,
+                twilio_sid=twilio_sid,
+                twilio_from=twilio_from,
+                twilio_to=twilio_to,
+            )
             call_config = TwilioCallConfig(
                 transcriber_config=inbound_call_config.transcriber_config
                 or TwilioCallConfig.default_transcriber_config(),
-                agent_config=agent_config_factory.get_agent_config(
-                    twilio_config=twilio_config,
-                    twilio_sid=twilio_sid,
-                    twilio_from=twilio_from,
-                    twilio_to=twilio_to,
-                ),  # inbound_call_config.agent_config, # should do something with twilio_config here
+                agent_config=agent_config,  # inbound_call_config.agent_config, # should do something with twilio_config here
                 synthesizer_config=inbound_call_config.synthesizer_config
                 or TwilioCallConfig.default_synthesizer_config(),
                 twilio_config=twilio_config,
