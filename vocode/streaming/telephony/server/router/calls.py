@@ -73,31 +73,13 @@ class CallsRouter(BaseRouter):
                 synthesizer_factory=synthesizer_factory,
                 events_manager=events_manager,
             )
-        elif isinstance(call_config, VonageCallConfig):
-            return VonageCall(
-                to_phone=call_config.to_phone,
-                from_phone=call_config.from_phone,
-                base_url=base_url,
-                logger=logger,
-                config_manager=config_manager,
-                agent_config=call_config.agent_config,
-                transcriber_config=call_config.transcriber_config,
-                synthesizer_config=call_config.synthesizer_config,
-                vonage_config=call_config.vonage_config,
-                vonage_uuid=call_config.vonage_uuid,
-                conversation_id=conversation_id,
-                transcriber_factory=transcriber_factory,
-                agent_factory=agent_factory,
-                synthesizer_factory=synthesizer_factory,
-                events_manager=events_manager,
-                output_to_speaker=call_config.output_to_speaker,
-            )
         else:
             raise ValueError(f"Unknown call config type {call_config.type}")
 
     async def connect_call(self, websocket: WebSocket, id: str):
         await websocket.accept()
         self.logger.debug("Phone WS connection opened for chat {}".format(id))
+        # call_config was created in the partial on /inbound_call
         call_config = await self.config_manager.get_config(id)
         if not call_config:
             raise HTTPException(status_code=400, detail="No active phone call")

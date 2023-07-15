@@ -24,7 +24,6 @@ from opentelemetry.context.context import Context
 
 
 class GoogleSynthesizer(BaseSynthesizer[GoogleSynthesizerConfig]):
-
     def __init__(
         self,
         synthesizer_config: GoogleSynthesizerConfig,

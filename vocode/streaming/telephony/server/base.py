@@ -3,7 +3,7 @@ from functools import partial
 import logging
 from typing import List, Optional
 from fastapi import APIRouter, Form, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from vocode.streaming.agent.factory import AgentFactory
 from vocode.streaming.models.agent import AgentConfig
 from vocode.streaming.models.events import RecordingEvent
@@ -16,6 +16,8 @@ from vocode.streaming.telephony.client.vonage_client import VonageClient
 from vocode.streaming.telephony.config_manager.base_config_manager import (
     BaseConfigManager,
 )
+from vocode.streaming.models.agent import ChatGPTAgentConfig
+from vocode.streaming.models.message import BaseMessage
 from vocode.streaming.telephony.constants import (
     DEFAULT_AUDIO_ENCODING,
     DEFAULT_CHUNK_SIZE,
@@ -39,11 +41,30 @@ from vocode.streaming.utils import create_conversation_id
 from vocode.streaming.utils.events_manager import EventsManager
 
 
+class AgentConfigFactory:
+    def get_agent_config(
+        self,
+        twilio_config: TwilioConfig,
+        twilio_sid: str,
+        twilio_from: str,
+        twilio_to: str,
+    ) -> AgentConfig:
+        return ChatGPTAgentConfig(
+            initial_message=BaseMessage(text="What up"),
+            prompt_preamble="Have a pleasant conversation about life",
+            generate_responses=True,
+        )
+
+
 class AbstractInboundCallConfig(BaseModel, abc.ABC):
     url: str
-    agent_config: AgentConfig
     transcriber_config: Optional[TranscriberConfig] = None
     synthesizer_config: Optional[SynthesizerConfig] = None
+    # agent_config_factory: AgentConfigFactory #= Field(default_factory=AgentConfigFactory)
+
+    # @validator('agent_config_factory', pre=True, always=True)
+    # def set_ts_now(cls, v):
+    #     return v or AgentConfigFactory()
 
 
 class TwilioInboundCallConfig(AbstractInboundCallConfig):
@@ -67,6 +88,7 @@ class TelephonyServer:
         config_manager: BaseConfigManager,
         inbound_call_configs: List[AbstractInboundCallConfig] = [],
         transcriber_factory: TranscriberFactory = TranscriberFactory(),
+        agent_config_factory: AgentConfigFactory = AgentConfigFactory(),
         agent_factory: AgentFactory = AgentFactory(),
         synthesizer_factory: SynthesizerFactory = SynthesizerFactory(),
         events_manager: Optional[EventsManager] = None,
@@ -92,28 +114,40 @@ class TelephonyServer:
         for config in inbound_call_configs:
             self.router.add_api_route(
                 config.url,
-                self.create_inbound_route(inbound_call_config=config),
+                self.create_inbound_route(
+                    inbound_call_config=config,
+                    agent_config_factory=agent_config_factory,
+                ),
                 methods=["POST"],
             )
         # vonage requires an events endpoint
         self.router.add_api_route("/events", self.events, methods=["GET", "POST"])
         self.logger.info(f"Set up events endpoint at https://{self.base_url}/events")
 
-        self.router.add_api_route("/recordings/{conversation_id}", self.recordings, methods=["GET", "POST"])
-        self.logger.info(f"Set up recordings endpoint at https://{self.base_url}/recordings/{{conversation_id}}")
- 
+        self.router.add_api_route(
+            "/recordings/{conversation_id}", self.recordings, methods=["GET", "POST"]
+        )
+        self.logger.info(
+            f"Set up recordings endpoint at https://{self.base_url}/recordings/{{conversation_id}}"
+        )
+
     def events(self, request: Request):
         return Response()
 
     async def recordings(self, request: Request, conversation_id: str):
         recording_url = (await request.json())["recording_url"]
         if self.events_manager is not None and recording_url is not None:
-            self.events_manager.publish_event(RecordingEvent(recording_url=recording_url, conversation_id=conversation_id))
+            self.events_manager.publish_event(
+                RecordingEvent(
+                    recording_url=recording_url, conversation_id=conversation_id
+                )
+            )
         return Response()
 
     def create_inbound_route(
         self,
         inbound_call_config: AbstractInboundCallConfig,
+        agent_config_factory: AgentConfigFactory,
     ):
         async def twilio_route(
             twilio_config: TwilioConfig,
@@ -124,7 +158,12 @@ class TelephonyServer:
             call_config = TwilioCallConfig(
                 transcriber_config=inbound_call_config.transcriber_config
                 or TwilioCallConfig.default_transcriber_config(),
-                agent_config=inbound_call_config.agent_config,
+                agent_config=agent_config_factory.get_agent_config(
+                    twilio_config=twilio_config,
+                    twilio_sid=twilio_sid,
+                    twilio_from=twilio_from,
+                    twilio_to=twilio_to,
+                ),  # inbound_call_config.agent_config, # should do something with twilio_config here
                 synthesizer_config=inbound_call_config.synthesizer_config
                 or TwilioCallConfig.default_synthesizer_config(),
                 twilio_config=twilio_config,
@@ -139,36 +178,36 @@ class TelephonyServer:
                 base_url=self.base_url, call_id=conversation_id
             )
 
-        async def vonage_route(
-            vonage_config: VonageConfig, vonage_answer_request: VonageAnswerRequest
-        ):
-            call_config = VonageCallConfig(
-                transcriber_config=inbound_call_config.transcriber_config
-                or VonageCallConfig.default_transcriber_config(),
-                agent_config=inbound_call_config.agent_config,
-                synthesizer_config=inbound_call_config.synthesizer_config
-                or VonageCallConfig.default_synthesizer_config(),
-                vonage_config=vonage_config,
-                vonage_uuid=vonage_answer_request.uuid,
-                to_phone=vonage_answer_request.from_,
-                from_phone=vonage_answer_request.to,
-            )
-            conversation_id = create_conversation_id()
-            await self.config_manager.save_config(conversation_id, call_config)
-            return VonageClient.create_call_ncco(
-                base_url=self.base_url, conversation_id=conversation_id, record=vonage_config.record
-            )
+        # async def vonage_route(
+        #     vonage_config: VonageConfig, vonage_answer_request: VonageAnswerRequest
+        # ):
+        #     call_config = VonageCallConfig(
+        #         transcriber_config=inbound_call_config.transcriber_config
+        #         or VonageCallConfig.default_transcriber_config(),
+        #         agent_config=inbound_call_config.agent_config,
+        #         synthesizer_config=inbound_call_config.synthesizer_config
+        #         or VonageCallConfig.default_synthesizer_config(),
+        #         vonage_config=vonage_config,
+        #         vonage_uuid=vonage_answer_request.uuid,
+        #         to_phone=vonage_answer_request.from_,
+        #         from_phone=vonage_answer_request.to,
+        #     )
+        #     conversation_id = create_conversation_id()
+        #     await self.config_manager.save_config(conversation_id, call_config)
+        #     return VonageClient.create_call_ncco(
+        #         base_url=self.base_url, conversation_id=conversation_id, record=vonage_config.record
+        #     )
 
         if isinstance(inbound_call_config, TwilioInboundCallConfig):
             self.logger.info(
                 f"Set up inbound call TwiML at https://{self.base_url}{inbound_call_config.url}"
             )
             return partial(twilio_route, inbound_call_config.twilio_config)
-        elif isinstance(inbound_call_config, VonageInboundCallConfig):
-            self.logger.info(
-                f"Set up inbound call NCCO at https://{self.base_url}{inbound_call_config.url}"
-            )
-            return partial(vonage_route, inbound_call_config.vonage_config)
+        # elif isinstance(inbound_call_config, VonageInboundCallConfig):
+        #     self.logger.info(
+        #         f"Set up inbound call NCCO at https://{self.base_url}{inbound_call_config.url}"
+        #     )
+        #     return partial(vonage_route, inbound_call_config.vonage_config)
         else:
             raise ValueError(
                 f"Unknown inbound call config type {type(inbound_call_config)}"

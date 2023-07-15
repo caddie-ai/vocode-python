@@ -21,13 +21,13 @@ class ConversationStateManager:
         self._conversation.transcriber.get_transcriber_config().endpointing_config = (
             endpointing_config
         )
-    
+
     def disable_synthesis(self):
         self._conversation.synthesis_enabled = False
-    
+
     def enable_synthesis(self):
         self._conversation.synthesis_enabled = True
-    
+
     def terminate_conversation(self):
         self._conversation.terminate()
 

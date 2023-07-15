@@ -32,7 +32,9 @@ class ChatGPTAgent(RespondAgent[ChatGPTAgentConfig]):
         openai_api_key: Optional[str] = None,
         vector_db_factory=VectorDBFactory(),
     ):
-        super().__init__(agent_config=agent_config, action_factory=action_factory, logger=logger)
+        super().__init__(
+            agent_config=agent_config, action_factory=action_factory, logger=logger
+        )
         if agent_config.azure_params:
             openai.api_type = agent_config.azure_params.api_type
             openai.api_base = getenv("AZURE_OPENAI_API_BASE")
@@ -125,7 +127,7 @@ class ChatGPTAgent(RespondAgent[ChatGPTAgentConfig]):
             text = chat_completion.choices[0].message.content
         self.logger.debug(f"LLM response: {text}")
         return text, False
-    
+
     async def generate_response(
         self,
         human_input: str,
@@ -156,7 +158,6 @@ class ChatGPTAgent(RespondAgent[ChatGPTAgentConfig]):
         chat_parameters["stream"] = True
         stream = await openai.ChatCompletion.acreate(**chat_parameters)
         async for message in collate_response_async(
-            openai_get_tokens(stream),
-            get_functions=True
+            openai_get_tokens(stream), get_functions=True
         ):
             yield message

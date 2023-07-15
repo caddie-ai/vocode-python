@@ -25,6 +25,7 @@ from opentelemetry.context.context import Context
 
 # https://rime.ai/docs/quickstart
 
+
 class RimeSynthesizer(BaseSynthesizer[RimeSynthesizerConfig]):
     def __init__(
         self,
@@ -51,7 +52,7 @@ class RimeSynthesizer(BaseSynthesizer[RimeSynthesizerConfig]):
         body = {
             "text": message.text,
             "speaker": self.speaker,
-            "samplingRate": self.sampling_rate
+            "samplingRate": self.sampling_rate,
         }
         create_speech_span = tracer.start_span(
             f"synthesizer.{SynthesizerType.RIME.value.split('_', 1)[-1]}.create_total",
