@@ -94,5 +94,15 @@ class Call(StreamingConversation[TelephonyOutputDeviceType]):
         raise NotImplementedError
 
     async def tear_down(self):
+        redis = self.config_manager.redis  # type: ignore
+        if redis:
+            one_week_in_seconds = 60 * 60 * 24 * 7
+            await redis.setex(
+                f"transcript_{self.id}",
+                one_week_in_seconds,
+                self.transcript.to_string(),
+            )
+            await redis.setex(f"status_{self.id}", one_week_in_seconds, "ended")
+
         self.events_manager.publish_event(PhoneCallEndedEvent(conversation_id=self.id))
         await self.terminate()

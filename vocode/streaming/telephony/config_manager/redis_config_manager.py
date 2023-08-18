@@ -23,7 +23,8 @@ class RedisConfigManager(BaseConfigManager):
 
     async def save_config(self, conversation_id: str, config: BaseCallConfig):
         self.logger.debug(f"Saving config for {conversation_id}")
-        await self.redis.set(conversation_id, config.json())
+        one_week_in_seconds = 60 * 60 * 24 * 7
+        await self.redis.setex(conversation_id, one_week_in_seconds, config.json())
 
     async def get_config(self, conversation_id) -> Optional[BaseCallConfig]:
         self.logger.debug(f"Getting config for {conversation_id}")
