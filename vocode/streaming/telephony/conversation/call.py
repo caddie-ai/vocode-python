@@ -97,8 +97,10 @@ class Call(StreamingConversation[TelephonyOutputDeviceType]):
         redis = self.config_manager.redis  # type: ignore
         if redis:
             one_week_in_seconds = 60 * 60 * 24 * 7
+            key = f"transcript_{self.id}"
+            print("saving transcript to redis ", key)
             await redis.setex(
-                f"transcript_{self.id}",
+                key,
                 one_week_in_seconds,
                 self.transcript.to_string(),
             )
