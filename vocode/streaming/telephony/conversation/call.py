@@ -98,13 +98,15 @@ class Call(StreamingConversation[TelephonyOutputDeviceType]):
         if redis:
             one_week_in_seconds = 60 * 60 * 24 * 7
             key = f"transcript_{self.id}"
-            print("saving transcript to redis ", key)
+            self.logger.info("saving transcript to redis ", key)
             await redis.setex(
                 key,
                 one_week_in_seconds,
                 self.transcript.to_string(),
             )
             await redis.setex(f"status_{self.id}", one_week_in_seconds, "ended")
+        else:
+            self.logger.debug("no redis")
 
         self.events_manager.publish_event(PhoneCallEndedEvent(conversation_id=self.id))
         await self.terminate()
