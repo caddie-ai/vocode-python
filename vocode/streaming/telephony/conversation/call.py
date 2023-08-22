@@ -98,7 +98,7 @@ class Call(StreamingConversation[TelephonyOutputDeviceType]):
         if redis:
             one_week_in_seconds = 60 * 60 * 24 * 7
             key = f"transcript_{self.id}"
-            self.logger.info("saving transcript to redis ", key)
+            self.logger.info(f"saving transcript to redis {key}")
             await redis.setex(
                 key,
                 one_week_in_seconds,
